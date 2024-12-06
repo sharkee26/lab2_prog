@@ -83,7 +83,7 @@ jobs:
           brew info googletest
 
   # Конфигурируем проект с помощью CMake, используя номер запуска для PATCH_VERSION 
-      - run: cmake . -DPATCH_VERSION=${{ github.run_number }}  
+      - run: cmake . -DPATCH_VERSION=${{ github.run_number }} -DCMAKE_PREFIX_PATH="C:/libs/boost_1_80_0/boost_lib/lib/cmake/Boost-1.80.0"
   # Строим проект с помощью CMake
       - run: cmake --build .
   # Запускаем тесты
