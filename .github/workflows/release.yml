@@ -1,92 +1,109 @@
-
-name: CMake on multiple platforms
+name: C++ CI
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+      - feature/github_actions
+
+permissions:
+  contents: write
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    permissions: write-all
-
-    strategy:
-      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
-      fail-fast: false
-      
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-        build_type: [Release]
-        c_compiler: [gcc]
-        include:
-          - os: windows-latest
-            os_short: win64
-            c_compiler: gcc
-            cpp_compiler: g++
-            generator: -G "MinGW Makefiles"
-            cpack_type: zip
-          - os: ubuntu-latest
-            os_short: Linux
-            c_compiler: gcc
-            cpp_compiler: g++
-            cpack_type: deb
+    runs-on: ubuntu-latest
+    timeout-minutes: 60  # Для решения ошибки с Check if
 
     steps:
-    - uses: actions/checkout@v4
+      - name: Checkout repository #Получение кода из репозитория
+        uses: actions/checkout@v3
+        with:
+          submodules: true
 
-    - name: Install minGW
-      if: matrix.os == 'windows-latest'
-      run: |
-        choco install mingw
-        echo "C:/mingw64/tools/bin" >> $env:GITHUB_PATH
-        gcc --version
-        g++ --version
+      - name: Debug - Start
+        run: echo "Starting the job"
 
-    - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: >
-        cmake -B .
-        ${{ matrix.generator }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+      - name: Install dependencies # Установка зависимостей 
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libboost-all-dev \ #Библиотека BOOST
+            cmake \
+            openmpi-bin \
+            libopenmpi-dev
 
-    - name: Build
-      # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      run: |
-        cmake --build . --config ${{ matrix.build_type }}
-        cmake --build . --target package --config ${{ matrix.build_type }}
+      # Отладка перед сборкой
+      - name: Debug - Post install
+        run: echo "Dependencies installed"
 
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest --build-config ${{ matrix.build_type }}
-    
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.run_number }}-${{ matrix.os_short }}
-        release_name: Release ${{ github.run_number }}-${{ matrix.os_short }}
-        draft: false
-        prerelease: false
+      - name: Create build directory # Директория сборки
+        run: mkdir -p build
 
-    - name: Upload Release Asset
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ip_filter-0.1.0-${{ matrix.os_short }}.${{ matrix.cpack_type }}
-        asset_name: ip_filter-0.1.0-${{ matrix.os_short }}.${{ matrix.cpack_type }}
-        asset_content_type: application/${{ matrix.cpack_type }}
+      - name: Configure with CMake
+        run: |
+          cd build
+          cmake .. -DPATCH_VERSION=${{ github.run_number }}
+          
+      - name: Build the project
+        run: |
+          cd build
+          cmake --build .
 
-    
+      - name: Run tests
+        run: |
+          cd build
+          cmake --build . --target test
+
+      - name: Create package
+        run: |
+          cd build
+          cmake --build . --target package
+
+      # Отладка перед проверкой существования пакета
+      - name: Debug - List contents of build directory after package creation
+        run: ls -l ./build
+
+      # Проверка существования пакета для Linux
+      - name: Check if Linux package exists //  Шаг для проверки существования созданного пакета 
+        run: |
+          if [ -f "./build/IFilterProject-0.1.0-Linux.sh" ]; then  # Убедитесь, что имя файла правильное
+            echo "Linux package exists."
+          else
+            echo "Linux package does not exist."
+            exit 1
+          fi
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "release-${{ github.run_number }}"
+          release_name: "Release ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
+      # Отладка перед загрузкой ассета
+      - name: Debug - List contents of build directory before upload
+        run: ls -l ./build
+
+      - name: Upload Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./build/IFilterProject-0.1.0-Linux.sh  # Путь к созданному пакету 
+          asset_name: IFilterProject-0.1.0-Linux.sh 
+          asset_content_type: application/x-sh
+
+      - name: Debug - End
+        run: echo "Ending the job"
+      
+      - name: Debug - List all files in build directory at the end of the job
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "List of files in build directory:"
+          ls -la ./build
