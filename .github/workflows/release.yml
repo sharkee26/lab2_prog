@@ -1,97 +1,96 @@
-# This starter workflow is for a CMake project running on multiple platforms. There is a different starter workflow if you just want a single platform.
-# See: https://github.com/actions/starter-workflows/blob/main/ci/cmake-single-platform.yml
-name: CMake on multiple platforms
+name: 'C++ CI'
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - main
+      - feature/github_actions
+
+permissions:
+  contents: write  # Права на запись
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    permissions: write-all
-
     strategy:
-      # Set fail-fast to false to ensure that feedback is delivered for all matrix combinations. Consider changing this to true when your workflow is stable.
-      fail-fast: false
-
-      # Set up a matrix to run the following 3 configurations:
-      # 1. <Windows, Release, latest MSVC compiler toolchain on the default runner image, default generator>
-      # 2. <Linux, Release, latest GCC compiler toolchain on the default runner image, default generator>
-      # 3. <Linux, Release, latest Clang compiler toolchain on the default runner image, default generator>
-      #
-      # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        build_type: [Release]
-        c_compiler: [gcc]
-        include:
-          - os: windows-latest
-            os_short: win64
-            c_compiler: gcc
-            cpp_compiler: g++
-            generator: -G "MinGW Makefiles"
-            cpack_type: zip
-          - os: ubuntu-latest
-            os_short: Linux
-            c_compiler: gcc
-            cpp_compiler: g++
-            cpack_type: deb
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
 
     steps:
-    - uses: actions/checkout@v4
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
 
-    - name: Install minGW
-      if: matrix.os == 'windows-latest'
-      run: |
-        choco install mingw
-        echo "C:/mingw64/tools/bin" >> $env:GITHUB_PATH
-        gcc --version
-        g++ --version
+      - name: Install dependencies on Linux
+        if: ${{ runner.os == 'Linux' }}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libboost-test-dev
 
-    - name: Configure CMake
-      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: >
-        cmake -B .
-        ${{ matrix.generator }}
-        -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
-        -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
-        -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+      - name: Install dependencies on macOS
+        if: ${{ runner.os == 'macOS' }}
+        run: |
+          brew update
+          brew install boost
 
-    - name: Build
-      # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      run: |
-        cmake --build . --config ${{ matrix.build_type }}
-        cmake --build . --target package --config ${{ matrix.build_type }}
+      - name: Configure with CMake
+        run: |
+          cmake . -DPATCH_VERSION=${{ github.run_number }}
 
-    - name: Test
-      working-directory: ${{ steps.strings.outputs.build-output-dir }}
-      # Execute tests defined by the CMake configuration. Note that --build-config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
-      # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-      run: ctest --build-config ${{ matrix.build_type }}
-    
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ github.run_number }}-${{ matrix.os_short }}
-        release_name: Release ${{ github.run_number }}-${{ matrix.os_short }}
-        draft: false
-        prerelease: false
+      - name: Build the project
+        run: |
+          cmake --build .
 
-    - name: Upload Release Asset
-      id: upload-release-asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./ip_filter-0.1.0-${{ matrix.os_short }}.${{ matrix.cpack_type }}
-        asset_name: ip_filter-0.1.0-${{ matrix.os_short }}.${{ matrix.cpack_type }}
-        asset_content_type: application/${{ matrix.cpack_type }}
+      - name: Run tests
+        run: |
+          cmake --build . --target test
+
+      - name: Create package
+        run: |
+          cmake --build . --target package
+
+      - name: Create Release for Linux
+        if: ${{ runner.os == 'Linux' }}
+        id: create_release_linux
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "linux-${{ github.run_number }}"
+          release_name: "Release Linux ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset (Linux)
+        if: ${{ runner.os == 'Linux' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release_linux.outputs.upload_url }}
+          asset_path: ./helloworld-0.0.${{ github.run_number }}-Linux.deb
+          asset_name: helloworld-0.0.${{ github.run_number }}-Linux.deb
+          asset_content_type: application/vnd.debian.binary-package
+
+      - name: Create Release for macOS
+        if: ${{ runner.os == 'macOS' }}
+        id: create_release_macos
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "macos-${{ github.run_number }}"
+          release_name: "Release macOS ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload Release Asset (macOS)
+        if: ${{ runner.os == 'macOS' }}
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release_macos.outputs.upload_url }}
+          asset_path: ./helloworld-0.0.${{ github.run_number }}-Darwin.dmg
+          asset_name: helloworld-0.0.${{ github.run_number }}-Darwin.dmg
+          asset_content_type: application/x-apple-diskimage
