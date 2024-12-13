@@ -1,151 +1,128 @@
-#include <cassert>
-#include <cstdlib>
-#include <iostream>
-#include <fstream> // Для работы с файлами
-#include <string>
-#include <vector>
-#include <algorithm> // Для std::sort
-#include <tuple> // Для использования кортежей
 #include "ip_filter.h"
+#include <iostream>
+#include <sstream>
+#include <fstream>
+#include <algorithm>
 
-// Функция для разделения строки на части
-std::vector<std::string> split(const std::string &str, char d) {
-    std::vector<std::string> r;
+using namespace std;
 
-    // Проверка на пустую строку
-    if (str.empty()) {
-        return r; // Возвращаем пустой вектор
-    }
+// Конструктор IPv4
+IPv4::IPv4(const string& ip_str) {
+    stringstream ss(ip_str);
+    string temp;
 
-    std::string::size_type start = 0;
-    std::string::size_type stop = str.find_first_of(d);
-
-    while (stop != std::string::npos) {
-        // Добавляем подстроку между разделителями
-        r.push_back(str.substr(start, stop - start));
-        start = stop + 1; // Переход к следующему символу после разделителя
-        stop = str.find_first_of(d, start); // Находим следующий разделитель
-    }
-    
-    // Добавляем последнюю часть строки после последнего разделителя
-    r.push_back(str.substr(start));
-    
-    return r;
+    getline(ss, temp, '.'); 
+    n1 = stoi(temp);
+    getline(ss, temp, '.'); 
+    n2 = stoi(temp);
+    getline(ss, temp, '.'); 
+    n3 = stoi(temp);
+    getline(ss, temp, '.'); 
+    n4 = stoi(temp);
 }
 
-bool compareIPs(const std::vector<std::string>& a, const std::vector<std::string>& b) {
-    for (size_t i = 0; i < 4; ++i) { // Предполагаем, что IP-адрес состоит из 4 частей
-        int partA = (i < a.size()) ? std::stoi(a[i]) : 0; // Преобразуем строку в целое число
-        int partB = (i < b.size()) ? std::stoi(b[i]) : 0; // Если часть отсутствует, считаем ее равной 0
-
-        if (partA != partB) {
-            return partA < partB; // Сравниваем части
-        }
+// Оператор сравнения IPv4
+bool operator<(const IPv4& lhs, const IPv4& rhs) {
+    if (lhs.n1 != rhs.n1) {
+        return lhs.n1 < rhs.n1;
     }
-    return false; // Если все части равны
+    if (lhs.n2 != rhs.n2) {
+        return lhs.n2 < rhs.n2;
+    }
+    if (lhs.n3 != rhs.n3) {
+        return lhs.n3 < rhs.n3;
+    }
+    return lhs.n4 < rhs.n4;
 }
 
-void printIPAddresses(const std::vector<std::vector<std::string>>& ip_pool) {
-    for (const auto& ip : ip_pool) {
-        for (size_t i = 0; i < ip.size(); ++i) {
-            if (i != 0) {
-                std::cout << ".";
-            }
-            std::cout << ip[i];
-        }
-        std::cout << std::endl; // Переход на новую строку после каждого адреса
+// Функция для чтения IPv4-адресов из файла
+vector<IPv4> read_ip_addresses(const string& filename) {
+    vector<IPv4> ip_addresses;
+    ifstream file(filename);
+
+    if (!file.is_open()) {
+        cerr << "Ошибка открытия файла " << filename << endl;
+        return ip_addresses;
+    }
+
+    string line;
+    while (getline(file, line)) {
+        stringstream ss(line);
+        string ip_str;
+        getline(ss, ip_str, '\t');
+        ip_addresses.push_back(IPv4(ip_str));
+    }
+
+    file.close();
+    return ip_addresses;
+}
+
+// Функция для вывода списка IPv4-адресов
+void print_ip_addresses(const vector<IPv4>& ip_addresses) {
+    for (const auto& ip : ip_addresses) {
+        cout << static_cast<int>(ip.n1) << "." << static_cast<int>(ip.n2)
+             << "." << static_cast<int>(ip.n3) << "." << static_cast<int>(ip.n4)
+             << endl;
     }
 }
 
-// Функция для печати IP-адресов с первым байтом равным заданному значению
-void printIPsWithFirstByte(const std::vector<std::vector<std::string>>& ip_pool, int first_byte) {
-    for (const auto& ip : ip_pool) {
-        if (!ip.empty() && std::stoi(ip[0]) == first_byte) {
-            for (size_t i = 0; i < ip.size(); ++i) {
-                if (i != 0) {
-                    std::cout << ".";
-                }
-                std::cout << ip[i];
-            }
-            std::cout << std::endl; // Переход на новую строку после каждого адреса
-        }
-    }
-}
-
-// Функция для печати IP-адресов с первым байтом равным 46 и вторым - 70
-void printIPsWithFirstAndSecondByte(const std::vector<std::vector<std::string>>& ip_pool, int first_byte, int second_byte) {
-    for (const auto& ip : ip_pool) {
-        if (ip.size() >= 2 && std::stoi(ip[0]) == first_byte && std::stoi(ip[1]) == second_byte) {
-            for (size_t i = 0; i < ip.size(); ++i) {
-                if (i != 0) {
-                    std::cout << ".";
-                }
-                std::cout << ip[i];
-            }
-            std::cout << std::endl; // Переход на новую строку после каждого адреса
-        }
-    }
-}
-// Функция для печати IP-адресов, где любой байт равен заданному значению
-void printIPsWithAnyByte(const std::vector<std::vector<std::string>>& ip_pool, int byte_value) {
-    for (const auto& ip : ip_pool) {
-        for (const auto& part : ip) {
-            if (std::stoi(part) == byte_value) {
-                for (size_t i = 0; i < ip.size(); ++i) {
-                    if (i != 0) {
-                        std::cout << ".";
-                    }
-                    std::cout << ip[i];
-                }
-                std::cout << std::endl; // Переход на новую строку после каждого адреса
-                break; // Выходим из внутреннего цикла, чтобы не дублировать вывод для одного IP
-            }
+// Функция для вывода адресов с первым байтом 1
+void print_addresses_with_first_byte_1(const vector<IPv4>& ip_addresses) {
+    cout<<"Список адресов с первым байтом 1:"<<endl;
+    for (const auto& ip : ip_addresses) {
+        if (ip.n1 == 1) {
+            cout << static_cast<int>(ip.n1) << "." << static_cast<int>(ip.n2)
+                 << "." << static_cast<int>(ip.n3) << "." << static_cast<int>(ip.n4)
+                 << endl;
         }
     }
 }
 
-
-int main(){
-    setlocale(LC_ALL,"RUS");
-    try {
-        std::vector<std::vector<std::string>> ip_pool;
-
-        // Открываем файл для чтения
-        std::ifstream file("ip_filter.tsv");
-        if (!file.is_open()) {
-            throw std::runtime_error("Не удалось открыть файл ip_filter.tsv");
+// Функция для вывода адресов с первым байтом 46 и вторым 70
+void print_addresses_with_first_byte_46_and_second_byte_70(const vector<IPv4>& ip_addresses) {
+    cout<<"Список адресов с первым байтом 46 и вторым 70: "<<endl;
+    for (const auto& ip : ip_addresses) {
+        if (ip.n1 == 46 && ip.n2 == 70) {
+            cout << static_cast<int>(ip.n1) << "." << static_cast<int>(ip.n2)
+                 << "." << static_cast<int>(ip.n3) << "." << static_cast<int>(ip.n4)
+                 << endl;
         }
-
-        // Чтение IP-адресов из файла
-        for (std::string line; std::getline(file, line);) {
-            std::vector<std::string> v = split(line, '\t');
-            ip_pool.push_back(split(v.at(0), '.'));
-        }
-
-        file.close(); // Закрываем файл после чтения
-
-        // Лексикографическая сортировка IP-адресов
-        std::sort(ip_pool.begin(), ip_pool.end(), compareIPs);
-
-        // Выводим отсортированные IP-адреса
-        std::cout << "Полный список адресов после сортировки:\n";
-        printIPAddresses(ip_pool);
-
-        std::cout << "Вывод айпишек с 1" << "\n";
-        // Печать адресов с первым байтом равным 1
-        printIPsWithFirstByte(ip_pool, 1);
-
-        std::cout << "Вывод айпишек с 46 и 70 " << "\n";
-        // Печать адресов с первым байтом равным 46 и вторым - 70
-        printIPsWithFirstAndSecondByte(ip_pool, 46, 70);
-
-        std::cout << "Вывод айпишек с 46 " << "\n";    
-        // Печать адресов с любым байтом равным 46
-        printIPsWithAnyByte(ip_pool, 46);
-
-    } catch (const std::exception &e) {
-        std::cerr << e.what() << std::endl;
     }
+}
+
+// Функция для вывода адресов, содержащих 46 в любом байте
+void print_addresses_with_46_in_any_byte(const vector<IPv4>& ip_addresses) {
+    cout<<"Вывод адресов, содержащих 46 в любом байте:"<<endl;
+    for (const auto& ip : ip_addresses) {
+        if (ip.n1 == 46 || ip.n2 == 46 || ip.n3 == 46 || ip.n4 == 46) {
+            cout << static_cast<int>(ip.n1) << "." << static_cast<int>(ip.n2)
+                 << "." << static_cast<int>(ip.n3) << "." << static_cast<int>(ip.n4)
+                 << endl;
+        }
+    }
+}
+
+int main() {
+    string filename = "C:\\labskazenkov\\lab2\\02\\ip_filter.tsv";
+    vector<IPv4> ip_addresses = read_ip_addresses(filename);
+
+    // Сортировка в обратном лексикографическом порядке
+    sort(ip_addresses.begin(), ip_addresses.end(), [](const IPv4& lhs, const IPv4& rhs) {
+        return rhs < lhs; // Обратный лексикографический порядок
+    });
+
+    // Вывод отсортированных адресов
+    cout << "Отсортированные адреса:" << endl;
+    print_ip_addresses(ip_addresses);
+
+    // Вывод адресов с первым байтом 1
+    print_addresses_with_first_byte_1(ip_addresses);
+
+    // Вывод адресов с первым байтом 46 и вторым 70
+    print_addresses_with_first_byte_46_and_second_byte_70(ip_addresses);
+
+    // Вывод адресов, содержащих 46 в любом байте
+    print_addresses_with_46_in_any_byte(ip_addresses);
 
     return 0;
 }

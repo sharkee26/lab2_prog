@@ -1,58 +1,37 @@
-cmake_minimum_required(VERSION 3.10)
-cmake_policy(SET CMP0167 NEW)
+cmake_minimum_required(VERSION 3.10) # Устанавливает минимальную версию CMake, необходимую для этого проекта.
+set(PATCH_VERSION "1" CACHE INTERNAL "Patch version")
+set(PROJECT_VESRION 0.0.${PATCH_VERSION})
+# Создает переменные PATCH_VERSION и PROJECT_VESRION для управления версиями проекта.
 
-project(IFilterProject VERSION 0.1.0)
+project(coollab2 VERSION ${PROJECT_VESRION}) # Определяет имя проекта coollab2 и использует переменную PROJECT_VESRION для указания версии проекта.
+# add_executable(coollab2 main.cpp cool.cpp cool.h)
 
-# Найти Boost
-set(Boost_DIR "C:/libs/boost_1_80_0/boost_lib/lib/cmake/Boost-1.80.0")
-find_package(Boost REQUIRED COMPONENTS unit_test_framework)
+set(CMAKE_CXX_STANDARD 17)
+set(CXX_STANDARD_REQUIRED ON)
 
-# Создание библиотеки и исполняемого файла
-add_library(ip_filter ip_filter.cpp)
-add_executable(test_ip_filter test_ip_filter.cpp)
+set(CPACK_PROJECT_NAME coollab2)
 
-# Установка стандартов C++
-set_target_properties(ip_filter test_ip_filter PROPERTIES
-    CXX_STANDARD 14
-    CXX_STANDARD_REQUIRED ON
-)
+# Установка пакета DEB для Linux
+if (CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(CPACK_GENERATOR DEB) # Настраивает CPack для создания пакетов DEB (Linux).
+    # Укажите зависимости пакета
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libgtk-3-dev libstdc++6-dev")
+endif()
+# Установка пакета ZIP для macOS
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(CPACK_GENERATOR ZIP) # Настройка CPack для создания пакетов ZIP (macOS)
+endif()
 
-# Установка директорий для заголовочных файлов
-target_include_directories(ip_filter PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_include_directories(test_ip_filter PRIVATE ${Boost_INCLUDE_DIRS})
+set(CPACK_PACKAGE_VERSION_MAJOR "${PROJECT_VERSION_MAJOR}")
+set(CPACK_PACKAGE_VERSION_MINOR "${PROJECT_VERSION_MINOR}")
+set(CPACK_PACKAGE_VERSION_PATCH "${PROJECT_VERSION_PATCH}")
 
-# Связывание библиотек
-target_link_libraries(test_ip_filter PRIVATE ${Boost_LIBRARIES} ip_filter)
+set(CPACK_PACKAGE_CONTACT example@example.com)
 
-# Включение тестирования
-enable_testing()
-add_test(NAME test_ip_filter COMMAND test_ip_filter)
-
-# Копирование ресурсов (если необходимо)
-set(RESOURCE_FILES 
-    resources/ic.icns 
-    ip_filter.tsv  # Добавляем файл ip_filter.tsv
-)
-
-foreach(RESOURCE ${RESOURCE_FILES})
-    configure_file(${RESOURCE} ${CMAKE_BINARY_DIR}/${RESOURCE} COPYONLY)
-endforeach()
-
-# Включение CPack для создания пакетов
 include(CPack)
 
-# Настройки для CPack
-set(CPACK_PACKAGE_NAME "ip_filter")
-set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
-set(CPACK_PACKAGE_DESCRIPTION "A description of your package.")
-set(CPACK_PACKAGE_LICENSE "MIT")
-set(CPACK_GENERATOR "DEB")
-
-# Установка файлов в пакет (если необходимо)
-install(TARGETS ip_filter DESTINATION bin)
-install(TARGETS test_ip_filter DESTINATION bin)  
-
-# Установка ресурсов в пакет (если необходимо)
-install(FILES ${RESOURCE_FILES} DESTINATION resources)
-
-message("Configured PROJECT_VERSION: ${PROJECT_VERSION}")
+enable_testing() # Включает тестирование
+add_test(NAME test_main COMMAND tests) 
+add_subdirectory(gtests)
+set(CPACK_PROJECT_NAME ${PROJECT_NAME})
+set(CPACK_PROJECT_VERSION ${PROJECT_VERSION})

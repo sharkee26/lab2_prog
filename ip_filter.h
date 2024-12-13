@@ -4,19 +4,30 @@
 #include <string>
 #include <vector>
 
-// Функция для разделения строки на части
-std::vector<std::string> split(const std::string &str, char d);
+// Структура для представления IPv4-адреса
+struct IPv4 {
+    unsigned char n1, n2, n3, n4;
 
-// Функция для сравнения двух IP-адресов
-bool compareIPs(const std::vector<std::string>& a, const std::vector<std::string>& b);
+    // Конструктор, инициализирующий поля из строки
+    IPv4(const std::string& ip_str);
+};
 
-// Функция для печати IP-адресов с первым байтом равным заданному значению
-void printIPsWithFirstByte(const std::vector<std::vector<std::string>>& ip_pool, int first_byte);
+// Оператор сравнения для сортировки в обратном лексикографическом порядке
+bool operator<(const IPv4& lhs, const IPv4& rhs);
 
-// Функция для печати IP-адресов с первым байтом равным 46 и вторым - 70
-void printIPsWithFirstAndSecondByte(const std::vector<std::vector<std::string>>& ip_pool, int first_byte, int second_byte);
+// Функция для чтения IPv4-адресов из файла
+std::vector<IPv4> read_ip_addresses(const std::string& filename);
 
-// Функция для печати IP-адресов, где любой байт равен заданному значению
-void printIPsWithAnyByte(const std::vector<std::vector<std::string>>& ip_pool, int byte_value);
+// Функция для вывода списка IPv4-адресов
+void print_ip_addresses(const std::vector<IPv4>& ip_addresses);
+
+// Функция для вывода адресов с первым байтом 1
+void print_addresses_with_first_byte_1(const std::vector<IPv4>& ip_addresses);
+
+// Функция для вывода адресов с первым байтом 46 и вторым 70
+void print_addresses_with_first_byte_46_and_second_byte_70(const std::vector<IPv4>& ip_addresses);
+
+// Функция для вывода адресов, содержащих 46 в любом байте
+void print_addresses_with_46_in_any_byte(const std::vector<IPv4>& ip_addresses);
 
 #endif // IP_FILTER_H
